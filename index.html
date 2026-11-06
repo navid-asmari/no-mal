@@ -81,7 +81,7 @@
       app.replaceChildren(heading);
       if (!songs.length) { app.append(el('p', 'muted', 'No songs yet.')); return; }
       const results = await Promise.allSettled(songs.map(async song => {
-        const de = parseSong(await getText(`${song.id}_de.txt`));
+        const de = parseSong(await getText(`songs/${song.id}_de.txt`));
         return { id: song.id, title: de.title || `Song ${song.id}` };
       }));
       results.forEach((result, index) => {
@@ -99,7 +99,7 @@
 
     async function showSong(id, songs) {
       if (!songs.some(song => song.id === id)) throw new Error('Song not found in songs.json.');
-      const [deText, enText] = await Promise.all([getText(`${id}_de.txt`), getText(`${id}_en.txt`)]);
+      const [deText, enText] = await Promise.all([getText(`songs/${id}_de.txt`), getText(`songs/${id}_en.txt`)]);
       const de = parseSong(deText);
       const en = parseSong(enText);
       const back = el('a', 'back', '← All songs');
