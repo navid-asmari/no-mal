@@ -1,26 +1,129 @@
-
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#14171b">
+  <meta name="description" content="Swiss German through songs, with English translations.">
   <title>Nomal! — Swiss German through songs</title>
   <style>
-    body {
-      font-family: system-ui, sans-serif;
-      max-width: 850px;
-      margin: 70px auto;
-      padding: 0 20px;
-      line-height: 1.6;
-    }
-    h1 { font-size: 3rem; }
-    a { color: inherit; }
+    :root { color-scheme: dark; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #14171b; color: #f1f3f5; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    .wrap { max-width: 960px; margin: auto; padding: 32px 24px 72px; }
+    header { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; border-bottom: 1px solid #353b43; padding-bottom: 24px; }
+    .logo { font-size: 2.3rem; font-weight: 750; letter-spacing: -.06em; text-decoration: none; color: inherit; }
+    .logo span { color: #9da7b3; }
+    .tagline, .muted { color: #a8b0ba; }
+    .tagline { font-size: .85rem; text-align: right; }
+    main { padding-top: 44px; }
+    h1 { font-size: clamp(1.65rem, 4vw, 2.2rem); letter-spacing: -.035em; margin: 0 0 28px; }
+    .song-link { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 19px 2px; border-bottom: 1px solid #353b43; text-decoration: none; color: #e9edf2; transition: color .15s; }
+    .song-link:hover, .back:hover { color: #a9c8f5; }
+    .arrow { color: #a8b0ba; }
+    .back { display: inline-block; color: #a8b0ba; text-decoration: none; margin-bottom: 32px; }
+    .columns { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+    .col-title { color: #a8b0ba; text-transform: uppercase; font-size: .75rem; font-weight: 700; letter-spacing: .11em; padding-bottom: 14px; border-bottom: 1px solid #353b43; }
+    .lyrics { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.85; font-size: 1rem; color: #e9edf2; margin: 24px 0; }
+    .error { color: #ffb4b4; }
+    footer { margin-top: 80px; color: #8d98a5; font-size: .8rem; }
+    @media (max-width: 640px) { .wrap { padding: 22px 18px 56px; } header { align-items: center; } .logo { font-size: 2rem; } .tagline { max-width: 140px; } main { padding-top: 34px; } .columns { grid-template-columns: 1fr; gap: 28px; } }
   </style>
 </head>
 <body>
-  <h1>Nomal!</h1>
-  <p>Swiss German, one song at a time.</p>
-  <h2>Songs</h2>
-  <p>Coming soon!</p>
+  <div class="wrap">
+    <header>
+      <a class="logo" href="./">nomal<span>!</span></a>
+      <div class="tagline">Swiss German through songs</div>
+    </header>
+    <main id="app" aria-live="polite"><p class="muted">Loading songs…</p></main>
+    <footer>nomal.ch</footer>
+  </div>
+  <script>
+    const app = document.getElementById('app');
+    const params = new URLSearchParams(location.search);
+    const selectedId = params.get('song');
+
+    async function getText(path) {
+      const response = await fetch(path, { cache: 'no-cache' });
+      if (!response.ok) throw new Error(`Could not load ${path} (${response.status})`);
+      return response.text();
+    }
+
+    function parseSong(text) {
+      const normalized = text.replace(/\r\n?/g, '\n');
+      const newline = normalized.indexOf('\n');
+      return {
+        title: (newline < 0 ? normalized : normalized.slice(0, newline)).trim(),
+        lyrics: newline < 0 ? '' : normalized.slice(newline + 1).trim()
+      };
+    }
+
+    function el(tag, className, content) {
+      const node = document.createElement(tag);
+      if (className) node.className = className;
+      if (content !== undefined) node.textContent = content;
+      return node;
+    }
+
+    function validId(id) { return typeof id === 'string' && /^[a-zA-Z0-9_-]+$/.test(id); }
+
+    async function loadIndex() {
+      const songs = JSON.parse(await getText('songs.json'));
+      if (!Array.isArray(songs) || !songs.every(s => s && validId(s.id))) {
+        throw new Error('songs.json must be an array of objects with valid string ids.');
+      }
+      return songs;
+    }
+
+    async function showList(songs) {
+      const heading = el('h1', '', 'Songs');
+      app.replaceChildren(heading);
+      if (!songs.length) { app.append(el('p', 'muted', 'No songs yet.')); return; }
+      const results = await Promise.allSettled(songs.map(async song => {
+        const de = parseSong(await getText(`${song.id}_de.txt`));
+        return { id: song.id, title: de.title || `Song ${song.id}` };
+      }));
+      results.forEach((result, index) => {
+        if (result.status !== 'fulfilled') {
+          app.append(el('p', 'error', `Could not load song ${songs[index].id}.`));
+          return;
+        }
+        const song = result.value;
+        const link = el('a', 'song-link');
+        link.href = `?song=${encodeURIComponent(song.id)}`;
+        link.append(el('span', '', song.title), el('span', 'arrow', '↗'));
+        app.append(link);
+      });
+    }
+
+    async function showSong(id, songs) {
+      if (!songs.some(song => song.id === id)) throw new Error('Song not found in songs.json.');
+      const [deText, enText] = await Promise.all([getText(`${id}_de.txt`), getText(`${id}_en.txt`)]);
+      const de = parseSong(deText);
+      const en = parseSong(enText);
+      const back = el('a', 'back', '← All songs');
+      back.href = './';
+      const title = el('h1', '', de.title || en.title || `Song ${id}`);
+      document.title = `${title.textContent} — Nomal!`;
+      const columns = el('div', 'columns');
+      for (const [label, content] of [['Schwiizerdütsch', de.lyrics], ['English', en.lyrics]]) {
+        const column = el('section');
+        column.append(el('div', 'col-title', label), el('div', 'lyrics', content));
+        columns.append(column);
+      }
+      app.replaceChildren(back, title, columns);
+    }
+
+    (async () => {
+      try {
+        const songs = await loadIndex();
+        if (selectedId !== null) await showSong(selectedId, songs);
+        else await showList(songs);
+      } catch (error) {
+        app.replaceChildren(el('p', 'error', error.message));
+      }
+    })();
+  </script>
 </body>
 </html>
