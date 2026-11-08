@@ -1,4 +1,3 @@
-
 'use strict';
 const list = document.getElementById('song-list');
 const view = document.getElementById('song-view');
@@ -44,16 +43,31 @@ function lyricsOnly(text) {
   return text.trim(); // also supports legacy lyrics-only files
 }
 
-function panel(language, lyrics) {
-  const section = document.createElement('section');
-  section.className = 'lyrics-panel';
-  const heading = document.createElement('h3');
-  heading.textContent = language;
-  const p = document.createElement('p');
-  p.className = 'lyrics';
-  p.textContent = lyrics;
-  section.append(heading, p);
-  return section;
+function alignedLyrics(deText, enText) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'lyrics-panel';
+  const grid = document.createElement('div');
+  grid.className = 'lyrics-grid';
+  for (const [label, lang] of [['Schwiizerdütsch', 'de'], ['English', 'en']]) {
+    const heading = document.createElement('h3');
+    heading.textContent = label;
+    heading.className = 'lyrics-column-heading';
+    heading.lang = lang;
+    grid.append(heading);
+  }
+  const deLines = lyricsOnly(deText).split('\n');
+  const enLines = lyricsOnly(enText).split('\n');
+  for (let i = 0; i < Math.max(deLines.length, enLines.length); i++) {
+    for (const [line, lang] of [[deLines[i] || '', 'gsw'], [enLines[i] || '', 'en']]) {
+      const cell = document.createElement('div');
+      cell.className = 'lyric-line' + (!line.trim() ? ' stanza-gap' : '');
+      cell.lang = lang;
+      cell.textContent = line || '\u00a0';
+      grid.append(cell);
+    }
+  }
+  wrapper.append(grid);
+  return wrapper;
 }
 
 async function showSong(index) {
@@ -77,10 +91,7 @@ async function showSong(index) {
     const artist = document.createElement('p');
     artist.textContent = 'by ' + song.artist;
     heading.append(h2, artist);
-    const grid = document.createElement('div');
-    grid.className = 'lyrics-grid';
-    grid.append(panel('Schwiizerdütsch', lyricsOnly(de)), panel('English', lyricsOnly(en)));
-    view.replaceChildren(heading, grid);
+    view.replaceChildren(heading, alignedLyrics(de, en));
   } catch (error) {
     if (id === requestNumber) message(error.message, true);
   }
@@ -102,4 +113,3 @@ search.addEventListener('input', renderList);
     message(error.message + ' Preview through a local web server, not file://.', true);
   }
 })();
-
